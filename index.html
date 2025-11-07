@@ -1,0 +1,674 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width,initial-scale=1" />
+<title>Heal the Health, Heal Ourselves</title>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@300;500;700&display=swap">
+<style>
+  :root{
+    --bg:#f6fbff;
+    --primary:#0b8fbd; /* blue-teal */
+    --accent:#1aa38f;
+    --card:#ffffff;
+    --muted:#6b8b8f;
+    --success:#0fa985;
+  }
+  *{box-sizing:border-box}
+  html,body{height:100%}
+  body{
+    margin:0;
+    background:linear-gradient(180deg,var(--bg),#ffffff 60%);
+    font-family:Inter, "Noto Sans KR", system-ui, -apple-system, "Segoe UI", Roboto;
+    color:#073237;
+    overflow-y:auto;
+  }
+
+  /* Canvas particle background sits behind everything */
+  #bgCanvas{
+    position:fixed; inset:0; z-index:0; pointer-events:none;
+  }
+
+  /* Header */
+  header{
+    position:fixed; top:0; left:0; right:0; height:72px;
+    display:flex; align-items:center; justify-content:space-between;
+    padding:0 28px; background:rgba(255,255,255,0.7);
+    backdrop-filter: blur(6px); z-index:20;
+    border-bottom:1px solid rgba(9,64,70,0.04);
+  }
+  .brand {
+    display:flex; gap:14px; align-items:center;
+  }
+  .logo{
+    width:52px; height:52px; border-radius:10px;
+    background:linear-gradient(180deg,#dff9f6,#c8f0ec); display:grid; place-items:center;
+    box-shadow:0 4px 16px rgba(15,90,88,0.06);
+  }
+  .logo svg{width:34px;height:34px}
+  h1{
+    font-size:18px; margin:0; color:var(--primary); letter-spacing:0.3px;
+  }
+  .subtitle {font-size:12px; color:var(--muted); margin-top:4px}
+
+  nav{display:flex; gap:12px; align-items:center}
+  nav a{
+    text-decoration:none; color:#074b4d; font-weight:600; padding:8px 12px;
+    border-radius:8px; transition:0.18s;
+  }
+  nav a:hover{background:rgba(11,143,189,0.08)}
+
+  /* Layout: content area with padding to avoid header/footer */
+  main{
+    position:relative; z-index:10;
+    padding:92px 40px 180px; max-width:1200px; margin:0 auto;
+    display:grid; grid-template-columns: 1fr 360px; gap:24px;
+  }
+
+  /* Left column: main content */
+  .content {display:flex; flex-direction:column; gap:18px;}
+
+  .card{
+    background:var(--card); border-radius:14px; padding:18px;
+    box-shadow:0 8px 28px rgba(11,63,63,0.04);
+    border:1px solid rgba(10,80,80,0.03);
+  }
+  .card h2{margin:0 0 8px 0; color:var(--primary)}
+  .muted{color:var(--muted); font-size:13px}
+
+  /* Right column: aside widgets */
+  aside{display:flex; flex-direction:column; gap:18px; position:sticky; top:88px; height:calc(100vh - 120px); overflow:auto; padding-bottom:40px}
+
+  /* Dashboard at bottom (fixed) */
+  #dashboard{
+    position:fixed; left:0; right:0; bottom:0; height:120px;
+    background:linear-gradient(180deg,#ffffff, #ecfbfa);
+    border-top:1px solid rgba(9,64,70,0.04);
+    display:flex; align-items:center; justify-content:space-between;
+    padding:12px 28px; gap:18px; z-index:25;
+  }
+  .dash-left{display:flex; gap:16px; align-items:center}
+  .aqi-gauge{width:120px; height:120px; display:grid; place-items:center}
+  .aqi-info{display:flex; flex-direction:column; gap:4px}
+  .aqi-val{font-size:20px; font-weight:800; color:#073237}
+  .aqi-label{font-size:13px; color:var(--muted)}
+
+  .dash-right{display:flex; gap:16px; align-items:center}
+
+  /* News */
+  .news-list{display:flex; flex-direction:column; gap:10px}
+  .news-item{background:linear-gradient(180deg,#f8ffff,#fbfffe); padding:10px;border-radius:10px;border:1px solid rgba(8,80,80,0.04); font-size:14px}
+
+  /* Health record */
+  .form-row{display:flex; gap:8px; align-items:center; margin-top:10px}
+  input[type="text"], input[type="number"], textarea, select {
+    width:100%; padding:10px; border-radius:8px; border:1px solid #e9f7f6; background:#fbfffe;
+    color:#073237; font-size:14px;
+  }
+  textarea{min-height:72px; resize:vertical}
+
+  .btn{background:var(--primary); color:white; border:none; padding:10px 14px; border-radius:10px; cursor:pointer; font-weight:700}
+  .btn.secondary{background:#e6f7f6; color:var(--primary); font-weight:700}
+  .small{font-size:12px; color:var(--muted)}
+
+  /* Gallery */
+  .gallery{display:flex; gap:10px; flex-wrap:wrap; margin-top:10px}
+  .gallery img{width:90px; height:90px; object-fit:cover; border-radius:8px; border:2px solid #e6fbf8}
+
+  /* Quiz */
+  .quiz q{display:block}
+
+  /* Responsive */
+  @media (max-width:1000px){
+    main{grid-template-columns:1fr; padding:110px 18px 220px}
+    aside{position:static;height:auto}
+    #dashboard{height:140px; flex-direction:column; gap:8px; padding:12px}
+    .aqi-gauge{width:96px;height:96px}
+  }
+</style>
+</head>
+<body>
+<canvas id="bgCanvas"></canvas>
+
+<header>
+  <div class="brand">
+    <div class="logo" aria-hidden="true">
+      <!-- leaf + heartbeat icon -->
+      <svg viewBox="0 0 64 64" xmlns="http://www.w3.org/2000/svg">
+        <path d="M12 36c6-18 26-26 38-20-10 8-10 18-10 28 0 10-12 12-20 4 4-4-2-10-8-12z" fill="#0b8fbd" opacity="0.08"/>
+        <path d="M22 46c-1-10 6-22 16-26" stroke="#0b8fbd" stroke-width="2.8" stroke-linecap="round" stroke-linejoin="round" fill="none"/>
+        <path d="M36 28c8-4 14-2 18 4" stroke="#1aa38f" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round" fill="none"/>
+      </svg>
+    </div>
+    <div>
+      <h1>HEAL THE HEALTH, HEAL OURSELVES</h1>
+      <div class="subtitle">환경 데이터 × 개인 건강 — 실시간으로 연결합니다</div>
+    </div>
+  </div>
+
+  <nav>
+    <a href="#problem">문제 인식</a>
+    <a href="#solution">해결 아이디어</a>
+    <a href="#health-approach">보건학적 접근</a>
+    <a href="#participation">참여·행동</a>
+  </nav>
+</header>
+
+<main>
+  <section class="content">
+    <!-- Hero / 요약 -->
+    <div class="card" aria-labelledby="heroTitle">
+      <h2 id="heroTitle">환경과 건강, 연결된 이야기</h2>
+      <p class="muted">대기오염과 미세플라스틱은 단순한 환경 문제가 아닙니다. 우리의 폐와 순환계, 면역에 영향을 주는 공중보건 이슈입니다. 이 사이트는 환경 데이터를 개인 건강 정보와 연결해 즉각적인 권고와 행동을 제시합니다.</p>
+    </div>
+
+    <!-- Problem -->
+    <div id="problem" class="card">
+      <h2>문제 인식</h2>
+      <p>대기 중 초미세먼지(PM2.5), 도시 대기오염, 해양으로 유입되는 미세플라스틱 등은 사람들의 호흡기·심혈관계 및 내분비계에 영향을 줍니다. 특히 취약계층(노약자, 어린이, 기저질환자)은 더 큰 위험에 노출됩니다.</p>
+      <ul class="small" style="margin-top:8px">
+        <li>장기적 노출은 만성호흡기 질환과 심혈관계 질환 위험을 높입니다.</li>
+        <li>미세플라스틱은 식품사슬을 통해 인체에 축적될 가능성이 제기됩니다.</li>
+      </ul>
+    </div>
+
+    <!-- Solution -->
+    <div id="solution" class="card">
+      <h2>해결 아이디어</h2>
+      <p>개인 건강 기록과 지역 환경(대기질, 기온, 습도)을 연동한 맞춤형 대시보드를 제공합니다. 실시간 알림, 일일 권장수칙, 커뮤니티 기반 실천 인증을 통해 시민 참여를 촉진합니다.</p>
+      <div style="display:flex; gap:10px; margin-top:12px; flex-wrap:wrap">
+        <div style="flex:1; min-width:180px; background:linear-gradient(180deg,#e9fbf9,#f2fff8); padding:10px; border-radius:10px">위치기반 AQI</div>
+        <div style="flex:1; min-width:180px; background:linear-gradient(180deg,#eef6ff,#f8fdff); padding:10px; border-radius:10px">건강 프로필 연동</div>
+        <div style="flex:1; min-width:180px; background:linear-gradient(180deg,#fff7ef,#fffdf8); padding:10px; border-radius:10px">시민 실천 인증</div>
+      </div>
+    </div>
+
+    <!-- Health approach -->
+    <div id="health-approach" class="card">
+      <h2>보건학적 접근</h2>
+      <p>환경보건학은 오염 물질이 인체에 미치는 생리적 영향을 분석하고, 공중보건 차원의 예방 전략을 제시합니다. 본 서비스는 다음을 결합합니다:</p>
+      <ul class="small" style="margin-top:8px">
+        <li>개인 건강 기록 → 증상 추적 및 패턴 분석</li>
+        <li>환경 데이터 시각화 → 위험도 추적</li>
+        <li>맞춤형 권고 → 실천 유도</li>
+      </ul>
+    </div>
+
+    <!-- Participation -->
+    <div id="participation" class="card">
+      <h2>참여 및 행동</h2>
+      <p>작은 실천이 모이면 큰 변화를 만듭니다. 실천 인증을 업로드하고, 다른 사용자와 공유하세요. 또한 프로젝트를 후원하여 더 많은 기능(실제 센서 연동, 리포트 제작 등)을 구현할 수 있습니다.</p>
+
+      <div style="display:flex; gap:10px; margin-top:12px; flex-wrap:wrap">
+        <button class="btn" onclick="document.getElementById('uploadInput').click()">실천 인증 업로드</button>
+        <button class="btn secondary" onclick="openDonateModal()">후원하기</button>
+        <button class="btn secondary" onclick="scrollToQuiz()">환경 퀴즈 풀기</button>
+      </div>
+
+      <!-- Gallery preview -->
+      <div class="gallery card" style="margin-top:12px" id="galleryPreview"></div>
+
+    </div>
+
+    <!-- News summary -->
+    <div class="card">
+      <h2>뉴스 요약</h2>
+      <div class="news-list" id="newsList">
+        <div class="news-item">🌍 WHO: 대기오염 관련 조기 사망 리포트(샘플)</div>
+        <div class="news-item">💧 미세플라스틱, 인체 장기 검출 사례 보고(샘플)</div>
+        <div class="news-item">🌱 도시 녹지 조성으로 정신건강 개선 연구 발표(샘플)</div>
+      </div>
+    </div>
+
+    <!-- Quiz & Result -->
+    <div id="quizCard" class="card">
+      <h2 id="quizTitle">간단한 환경 퀴즈</h2>
+      <div id="quizBody">
+        <div style="margin-bottom:8px">
+          <label>1) 주로 어떤 교통수단을 이용하나요?</label><br>
+          <select id="q1"><option value="2">대중교통/도보</option><option value="0">자가용</option></select>
+        </div>
+        <div style="margin-bottom:8px">
+          <label>2) 일회용품 사용을 줄이려 노력하나요?</label><br>
+          <select id="q2"><option value="2">항상</option><option value="1">가끔</option><option value="0">아니요</option></select>
+        </div>
+        <div style="margin-bottom:8px">
+          <label>3) 환경 관련 정보를 주기적으로 확인하나요?</label><br>
+          <select id="q3"><option value="2">자주 확인</option><option value="0">거의 안함</option></select>
+        </div>
+        <button class="btn" onclick="computeEnvIndex()">결과 확인</button>
+        <div id="quizResult" class="small" style="margin-top:10px"></div>
+      </div>
+    </div>
+
+    <!-- Health record history -->
+    <div class="card">
+      <h2>내 건강 기록</h2>
+      <p class="small">증상과 컨디션을 기록하면, 간단한 피드백을 즉시 제공합니다. 기록은 브라우저에 저장됩니다.</p>
+      <div style="display:flex; gap:8px; margin-top:10px; flex-wrap:wrap">
+        <input type="text" id="personName" placeholder="이름 (선택)" style="max-width:200px">
+        <input type="number" id="personAge" placeholder="나이" style="max-width:120px">
+      </div>
+      <div style="margin-top:8px">
+        <textarea id="healthNote" placeholder="오늘의 컨디션이나 증상(예: 두통, 기침, 숨가쁨 등)"></textarea>
+      </div>
+      <div style="display:flex; gap:8px; margin-top:8px">
+        <button class="btn" onclick="saveHealthRecord()">기록 저장</button>
+        <button class="btn secondary" onclick="exportHealth()">내보내기(CSV)</button>
+      </div>
+
+      <div id="recordList" style="margin-top:12px"></div>
+    </div>
+
+  </section>
+
+  <!-- Right column -->
+  <aside>
+    <!-- AQI chart + mini stats -->
+    <div class="card">
+      <h2>실시간 환경 데이터</h2>
+      <canvas id="aqiChart" style="max-width:260px; margin:6px auto;"></canvas>
+      <div style="display:flex; gap:8px; justify-content:center; margin-top:6px">
+        <div style="text-align:center"><div class="small">온도</div><div id="tempVal">--°C</div></div>
+        <div style="text-align:center"><div class="small">습도</div><div id="humVal">--%</div></div>
+      </div>
+      <div style="margin-top:8px; display:flex; gap:8px; justify-content:center">
+        <button class="btn" onclick="simulateRealtime()">데이터 갱신</button>
+        <button class="btn secondary" onclick="shareSummary()">공유</button>
+      </div>
+    </div>
+
+    <!-- News highlights -->
+    <div class="card">
+      <h2>뉴스 하이라이트</h2>
+      <div class="news-list">
+        <div class="news-item">✔︎ 미세먼지 주의보 발령(샘플)</div>
+        <div class="news-item">✔︎ 지역 커뮤니티 실천 캠페인 (샘플)</div>
+      </div>
+    </div>
+
+    <!-- Donation & missions -->
+    <div class="card">
+      <h2>후원 · 미션</h2>
+      <p class="small">프로젝트 운영 및 기능 확장을 위한 후원은 큰 힘이 됩니다.</p>
+      <div style="display:flex; gap:8px; margin-top:8px">
+        <button class="btn" onclick="openDonateModal()">후원하기</button>
+        <button class="btn secondary" onclick="document.getElementById('supportList').innerText = '후원 내역 불러옴(로컬)'; loadDonations()">내역</button>
+      </div>
+
+      <div style="margin-top:10px">
+        <label class="small">오늘의 실천 체크</label>
+        <div style="display:flex; gap:8px; margin-top:6px">
+          <label><input type="checkbox" id="m1"> 텀블러</label>
+          <label><input type="checkbox" id="m2"> 대중교통</label>
+          <label><input type="checkbox" id="m3"> 필터 교체</label>
+        </div>
+        <div style="margin-top:8px">
+          <button class="btn" onclick="saveMissions()">저장</button>
+        </div>
+        <div id="supportList" class="small" style="margin-top:8px"></div>
+      </div>
+    </div>
+
+    <!-- Small help -->
+    <div class="card">
+      <h2>간단 도움말</h2>
+      <p class="small">• 미세먼지 심할 땐 실외활동을 줄이세요.<br>• 증상 악화시 의료기관 방문을 권장합니다.</p>
+    </div>
+  </aside>
+</main>
+
+<!-- Bottom Dashboard -->
+<div id="dashboard" role="region" aria-label="환경 대시보드">
+  <div class="dash-left">
+    <div class="aqi-gauge">
+      <canvas id="gaugeCanvas" width="120" height="120"></canvas>
+    </div>
+    <div class="aqi-info">
+      <div class="aqi-val" id="dashAQI">—</div>
+      <div class="aqi-label" id="dashLabel">데이터 대기중</div>
+    </div>
+  </div>
+
+  <div class="dash-right">
+    <div style="text-align:right">
+      <div class="small">위치</div>
+      <div style="font-weight:700">서울 (샘플)</div>
+    </div>
+    <div style="min-width:160px; text-align:left">
+      <div class="small">오늘 권고</div>
+      <div id="dashTip" style="font-weight:700">데이터 불러오기</div>
+    </div>
+    <div>
+      <button class="btn" onclick="simulateRealtime()">새로고침</button>
+    </div>
+  </div>
+</div>
+
+<!-- Hidden inputs & modals -->
+<input type="file" id="uploadInput" accept="image/*" style="display:none" onchange="uploadCert(event)">
+
+<!-- Donate Modal -->
+<div id="donateModal" style="display:none; position:fixed; inset:0; background:rgba(0,0,0,0.5); z-index:60; align-items:center; justify-content:center">
+  <div style="background:white; padding:20px; border-radius:12px; width:360px; box-shadow:0 8px 30px rgba(0,0,0,0.2)">
+    <h3 style="margin-top:0; color:var(--primary)">프로젝트 후원</h3>
+    <p class="small">후원은 기능 개선, 센서 연동, 리포트 제작 등으로 사용됩니다.</p>
+
+    <div style="display:flex; gap:8px; margin-top:8px">
+      <button class="btn" onclick="donateAmount(3000)">₩3,000</button>
+      <button class="btn" onclick="donateAmount(10000)">₩10,000</button>
+      <button class="btn" onclick="donateAmount(30000)">₩30,000</button>
+    </div>
+
+    <div style="margin-top:10px">
+      <input id="donInput" type="number" placeholder="직접 금액 입력 (₩)" style="width:100%; padding:10px; border-radius:8px; border:1px solid #eef9f8"/>
+      <div style="display:flex; gap:8px; margin-top:10px">
+        <button class="btn" onclick="submitDonation()">후원 확인</button>
+        <button class="btn secondary" onclick="closeDonateModal()">취소</button>
+      </div>
+    </div>
+
+    <div id="donMsg" class="small" style="margin-top:8px; color:var(--muted)"></div>
+
+    <div style="margin-top:12px; text-align:center">
+      <a class="small" href="https://www.buymeacoffee.com" target="_blank" rel="noopener" style="color:var(--primary)">외부 결제(BuyMeACoffee)로 이동하기</a>
+    </div>
+  </div>
+</div>
+
+<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+<script>
+/* ---------- Particle background (canvas) ---------- */
+const cvs = document.getElementById('bgCanvas');
+const ctxBg = cvs.getContext('2d');
+function resizeCanvas(){
+  cvs.width = window.innerWidth;
+  cvs.height = window.innerHeight;
+}
+window.addEventListener('resize', resizeCanvas);
+resizeCanvas();
+
+const particles = [];
+for(let i=0;i<80;i++){
+  particles.push({
+    x: Math.random()*cvs.width,
+    y: Math.random()*cvs.height,
+    r: 0.6+Math.random()*2.2,
+    vx: (Math.random()-0.5)*0.2,
+    vy: (Math.random()-0.5)*0.2,
+    alpha: 0.05 + Math.random()*0.18
+  });
+}
+function animBg(){
+  ctxBg.clearRect(0,0,cvs.width,cvs.height);
+  for(const p of particles){
+    p.x += p.vx;
+    p.y += p.vy;
+    if(p.x<0) p.x = cvs.width;
+    if(p.x>cvs.width) p.x = 0;
+    if(p.y<0) p.y = cvs.height;
+    if(p.y>cvs.height) p.y = 0;
+    ctxBg.beginPath();
+    ctxBg.fillStyle = "rgba(11,143,189,"+p.alpha+")";
+    ctxBg.arc(p.x,p.y,p.r,0,Math.PI*2);
+    ctxBg.fill();
+  }
+  requestAnimationFrame(animBg);
+}
+animBg();
+
+/* ---------- Chart.js: AQI line and gauge(doughnut) ---------- */
+let aqiLine; // weekly trend
+function initCharts(){
+  const lineCtx = document.getElementById('aqiChart').getContext('2d');
+  aqiLine = new Chart(lineCtx, {
+    type: 'line',
+    data: {
+      labels: ['월','화','수','목','금','토','일'],
+      datasets: [{
+        label: 'AQI (주간)',
+        data: [55,65,48,72,60,50,42],
+        borderColor: '#0b8fbd',
+        backgroundColor: 'rgba(11,143,189,0.08)',
+        fill: true,
+        tension: 0.3,
+        pointRadius:4
+      }]
+    },
+    options: { responsive:true, plugins:{legend:{display:false}} , scales:{y:{beginAtZero:true, max:200}}}
+  });
+
+  // Gauge using doughnut
+  const gaugeCtx = document.getElementById('gaugeCanvas').getContext('2d');
+  window.gaugeChart = new Chart(gaugeCtx, {
+    type:'doughnut',
+    data:{
+      labels:['AQI','remaining'],
+      datasets:[{
+        data:[60, 440], // default; normalized to 500
+        backgroundColor:['#1aa38f','#e6f7f6'],
+        borderWidth:0
+      }]
+    },
+    options:{
+      cutout:'80%',
+      rotation: -90 * Math.PI/180,
+      circumference: 180 * Math.PI/180,
+      plugins:{legend:{display:false}}
+    }
+  });
+}
+initCharts();
+
+/* ---------- Dashboard values & behavior ---------- */
+function getAqiLabel(aqi){
+  if(aqi<=50) return {label:'좋음',risk:'낮음',color:'#1aa38f',tip:'야외 활동 권장'};
+  if(aqi<=100) return {label:'보통',risk:'보통',color:'#f9c74f',tip:'장시간 격렬한 활동 자제'};
+  if(aqi<=200) return {label:'나쁨',risk:'높음',color:'#f29c9c',tip:'기저질환자 실외활동 제한'};
+  return {label:'매우 나쁨',risk:'매우 높음',color:'#c04a4a',tip:'모든 사람 실외활동 자제'};
+}
+
+function updateGauge(aqi){
+  const normalized = Math.min(500, Math.max(0, aqi));
+  const rem = 500 - normalized;
+  window.gaugeChart.data.datasets[0].data = [normalized, rem];
+  const lbl = getAqiLabel(aqi);
+  window.gaugeChart.data.datasets[0].backgroundColor[0] = lbl.color;
+  window.gaugeChart.update();
+  document.getElementById('dashAQI').innerText = aqi;
+  document.getElementById('dashLabel').innerText = lbl.label;
+  document.getElementById('dashTip').innerText = lbl.tip;
+}
+
+/* Simulate realtime env */
+function randomBetween(min,max){return Math.round(min + Math.random()*(max-min))}
+function simulateRealtime(){
+  // simulate aqi, temp, hum and push into line chart
+  const aqi = randomBetween(25, 160);
+  const temp = randomBetween(6, 30);
+  const hum = randomBetween(30, 75);
+
+  // push to line dataset (shift)
+  const ds = aqiLine.data.datasets[0].data;
+  ds.shift(); ds.push(aqi);
+  aqiLine.update();
+
+  document.getElementById('tempVal').innerText = temp + "°C";
+  document.getElementById('humVal').innerText = hum + "%";
+  updateGauge(aqi);
+
+  // Feed news small change (simulate)
+  const newsList = document.getElementById('newsList');
+  const sample = [
+    "도심 녹지 확충, 호흡기 질환 완화 연구(샘플)",
+    "지역 공기측정망 운영 확대(샘플)",
+    "미세플라스틱 모니터링 보고서 업데이트(샘플)",
+    "어린이 건강 보호 캠페인 시작(샘플)"
+  ];
+  newsList.children[Math.floor(Math.random()*newsList.children.length)].innerText = "• " + sample[Math.floor(Math.random()*sample.length)];
+}
+
+/* Auto simulate on load & every 12s */
+simulateRealtime();
+setInterval(simulateRealtime, 12000);
+
+/* ---------- Health record (localStorage) ---------- */
+const HEALTH_KEY = 'heal_health_records_v1';
+function saveHealthRecord(){
+  const name = document.getElementById('personName').value || '익명';
+  const age = document.getElementById('personAge').value || '';
+  const note = document.getElementById('healthNote').value.trim();
+  if(!note){ alert("기록할 내용을 입력하세요."); return; }
+  const rec = {name, age, note, time: new Date().toISOString()};
+  const arr = JSON.parse(localStorage.getItem(HEALTH_KEY) || '[]');
+  arr.unshift(rec);
+  localStorage.setItem(HEALTH_KEY, JSON.stringify(arr));
+  document.getElementById('healthNote').value = '';
+  renderHealthRecords();
+  provideFeedback(rec);
+}
+function renderHealthRecords(){
+  const arr = JSON.parse(localStorage.getItem(HEALTH_KEY) || '[]');
+  const container = document.getElementById('recordList');
+  container.innerHTML = '';
+  if(arr.length===0){ container.innerHTML = '<div class="small">저장된 기록이 없습니다.</div>'; return; }
+  arr.slice(0,10).forEach(r=>{
+    const d = new Date(r.time);
+    const el = document.createElement('div');
+    el.style.padding = '8px 0';
+    el.innerHTML = `<div style="font-weight:700">${r.name} ${r.age? '· '+r.age+'세':''} <span class="small" style="font-weight:400"> ${d.toLocaleString()}</span></div>
+      <div class="small">${r.note}</div>`;
+    container.appendChild(el);
+  });
+}
+function provideFeedback(record){
+  const note = record.note.toLowerCase();
+  let fb = "기록이 저장되었습니다. 증상을 관찰하세요.";
+  if(note.includes('두통') || note.includes('메스꺼') || note.includes('어지')){
+    fb = "두통이나 어지럼증이 있으면 충분한 휴식과 수분 섭취를 권장합니다. 증상 지속 시 진료를 받으세요.";
+  } else if(note.includes('기침') || note.includes('호흡') || note.includes('숨')){
+    fb = "호흡기 증상이 있네요. 공기질이 나쁠 경우 외출을 자제하고 마스크를 착용하세요.";
+  } else if(note.includes('피로') || note.includes('졸림')){
+    fb = "과로/수면 부족은 면역 저하로 이어질 수 있습니다. 휴식을 권장합니다.";
+  } else if(note.includes('괜찮') || note.includes('좋')){
+    fb = "컨디션이 양호해 보입니다. 현재 상태를 유지하세요!";
+  }
+  alert("피드백:\n" + fb);
+}
+
+/* Export CSV */
+function exportHealth(){
+  const arr = JSON.parse(localStorage.getItem(HEALTH_KEY) || '[]');
+  if(arr.length===0){ alert("내보낼 기록이 없습니다."); return; }
+  const rows = arr.map(r => `"${r.name}","${r.age}","${r.time}","${r.note.replace(/"/g,'""')}"`);
+  const csv = '이름,나이,시간,내용\n' + rows.join('\n');
+  const blob = new Blob([csv], {type:'text/csv;charset=utf-8;'});
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a'); a.href = url; a.download = 'health_records.csv'; a.click(); URL.revokeObjectURL(url);
+}
+
+/* Render existing records on load */
+renderHealthRecords();
+
+/* ---------- Gallery / Certification ---------- */
+const GALLERY_KEY = 'heal_gallery_v1';
+function uploadCert(e){
+  const file = e.target.files[0];
+  if(!file) return;
+  const reader = new FileReader();
+  reader.onload = function(ev){
+    const dataUrl = ev.target.result;
+    const arr = JSON.parse(localStorage.getItem(GALLERY_KEY) || '[]');
+    arr.unshift({src:dataUrl, time: new Date().toISOString()});
+    localStorage.setItem(GALLERY_KEY, JSON.stringify(arr));
+    renderGallery();
+    renderGalleryPreview();
+    alert("실천 인증이 업로드되었습니다.");
+  }
+  reader.readAsDataURL(file);
+}
+function renderGallery(){
+  const arr = JSON.parse(localStorage.getItem(GALLERY_KEY) || '[]');
+  const gallery = document.getElementById('galleryPreview');
+  gallery.innerHTML = '';
+  arr.slice(0,12).forEach(item=>{
+    const img = document.createElement('img');
+    img.src = item.src;
+    img.title = new Date(item.time).toLocaleString();
+    gallery.appendChild(img);
+  });
+}
+function renderGalleryPreview(){ renderGallery(); }
+renderGalleryPreview();
+
+/* ---------- Donation handling (local simulated) ---------- */
+const DON_KEY = 'heal_donations_v1';
+function openDonateModal(){ document.getElementById('donateModal').style.display = 'flex'; }
+function closeDonateModal(){ document.getElementById('donateModal').style.display = 'none'; }
+function donateAmount(val){ document.getElementById('donInput').value = val; }
+function submitDonation(){
+  const val = Number(document.getElementById('donInput').value);
+  if(!val || val<=0){ document.getElementById('donMsg').innerText = '유효한 금액을 입력하세요'; return; }
+  const arr = JSON.parse(localStorage.getItem(DON_KEY) || '[]');
+  arr.unshift({amount:val, time:new Date().toISOString()});
+  localStorage.setItem(DON_KEY, JSON.stringify(arr));
+  document.getElementById('donMsg').innerText = `감사합니다! ₩${val} 후원되었습니다. (데모)`;
+  setTimeout(()=>{ document.getElementById('donMsg').innerText=''; closeDonateModal(); }, 1400);
+}
+function loadDonations(){
+  const arr = JSON.parse(localStorage.getItem(DON_KEY) || '[]');
+  const el = document.getElementById('supportList');
+  if(arr.length===0){ el.innerText = '후원 내역 없음'; return; }
+  el.innerText = '후원 합계: ₩' + arr.reduce((s,i)=>s+i.amount,0);
+}
+
+/* ---------- Missions save ---------- */
+function saveMissions(){
+  const m1 = document.getElementById('m1').checked;
+  const m2 = document.getElementById('m2').checked;
+  const m3 = document.getElementById('m3').checked;
+  localStorage.setItem('heal_missions_v1', JSON.stringify({m1,m2,m3, time:new Date().toISOString()}));
+  alert('오늘의 실천이 저장되었습니다.');
+}
+
+/* ---------- Share summary ---------- */
+function shareSummary(){
+  const aqi = document.getElementById('dashAQI').innerText;
+  const label = document.getElementById('dashLabel').innerText;
+  const txt = `오늘의 AQI: ${aqi} (${label}) - Heal the Health 프로젝트`;
+  if(navigator.share){ navigator.share({title:'환경 건강 요약', text:txt}).catch(()=>navigator.clipboard.writeText(txt)); }
+  else { navigator.clipboard.writeText(txt); alert('요약이 클립보드에 복사되었습니다.'); }
+}
+
+/* ---------- Quiz compute ---------- */
+function computeEnvIndex(){
+  const s = Number(document.getElementById('q1').value) + Number(document.getElementById('q2').value) + Number(document.getElementById('q3').value);
+  const max = 6;
+  const percent = Math.round( (s / max) * 100 );
+  const el = document.getElementById('quizResult');
+  let msg = '';
+  if(percent >= 80) msg = `🌿 훌륭합니다! 환경 지수: ${percent} (친환경 생활을 잘 하고 있어요)`;
+  else if(percent >= 50) msg = `🙂 좋은 편이에요. 환경 지수: ${percent} (더 노력하면 좋아요)`;
+  else msg = `🔰 시작해봐요! 환경 지수: ${percent} (작은 실천으로 개선 가능)`;
+  el.innerText = msg;
+
+  // store last score
+  localStorage.setItem('heal_last_env_score', JSON.stringify({score:percent, time:new Date().toISOString()}));
+  // show quick tip
+  setTimeout(()=> alert('Tip: 텀블러와 대중교통 이용부터 시작해 보세요!'), 300);
+}
+
+function scrollToQuiz(){ document.getElementById('quizCard').scrollIntoView({behavior:'smooth'}); }
+
+/* ---------- On load: initial states ---------- */
+window.addEventListener('load', ()=>{
+  // initial gauge & chart state set by simulateRealtime call earlier
+  renderHealthRecords();
+  renderGalleryPreview();
+  loadDonations();
+});
+
+/* ---------- small helper: simulated realtime on interval already set above ---------- */
+</script>
+</body>
+</html>
